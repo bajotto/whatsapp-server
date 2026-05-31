@@ -87,8 +87,11 @@ const requireAdmin = (req, res, next) => {
 };
 
 const wrap = (fn) => (req, res) => fn(req, res).catch(err => {
-  console.error(`Error in ${req.method} ${req.path}:`, err);
-  res.status(500).json({ success: false, error: err.message });
+  const status = err.status || 500;
+  // Only 5xx are real server errors worth a noisy log; 4xx are client errors.
+  if (status >= 500) console.error(`Error in ${req.method} ${req.path}:`, err);
+  else console.warn(`${status} in ${req.method} ${req.path}: ${err.message}`);
+  res.status(status).json({ success: false, error: err.message });
 });
 
 // ── /v2/apps — registry management (admin) ───────────────────────────────

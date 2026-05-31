@@ -1,5 +1,6 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const logger = require('../utils/logger');
+const { HttpError } = require('./httpError');
 const qrcode = require('qrcode-terminal');
 const QRCode = require('qrcode');
 const fs = require('fs');
@@ -410,7 +411,7 @@ class WhatsAppService {
   // ── Brazilian phone normalisation ─────────────────────────────────────────
 
   normalizeBrazilianPhoneNumber(phoneNumber) {
-    if (!phoneNumber) throw new Error('Phone number is required');
+    if (!phoneNumber) throw new HttpError(400, 'Phone number is required');
     let digits = phoneNumber.replace(/\D/g, '');
     if (digits.startsWith('55')) digits = digits.substring(2);
 
@@ -429,7 +430,7 @@ class WhatsAppService {
         return '55' + digits.substring(0, 2) + '9' + digits.substring(2);
       }
     }
-    throw new Error(`Invalid phone format: ${phoneNumber} (${digits.length} digits). Expected: 55[DDD][9][8digits]`);
+    throw new HttpError(400, `Invalid phone format: ${phoneNumber} (${digits.length} digits). Expected: 55[DDD][9][8digits]`);
   }
 
   getAlternativeBrazilianNumber(phoneNumber) {

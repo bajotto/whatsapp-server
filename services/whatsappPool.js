@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const axios = require('axios');
 const logger = require('../utils/logger');
 const { WhatsAppService } = require('./whatsappService');
+const { HttpError } = require('./httpError');
 
 /**
  * Multi-app pool for the standalone WhatsApp service.
@@ -106,10 +107,10 @@ class WhatsAppPool {
 
   register({ name, label, webhookUrl }) {
     if (!name || !/^[a-z0-9][a-z0-9-]{1,63}$/.test(name)) {
-      throw new Error('App name must be lowercase alphanumeric with dashes (1-64 chars)');
+      throw new HttpError(400, 'App name must be lowercase alphanumeric with dashes (1-64 chars)');
     }
     if (this.apps[name]) {
-      throw new Error(`App "${name}" already registered`);
+      throw new HttpError(409, `App "${name}" already registered`);
     }
     const entry = {
       name,
@@ -127,7 +128,7 @@ class WhatsAppPool {
 
   update(name, { label, webhookUrl }) {
     const a = this.apps[name];
-    if (!a) throw new Error(`App "${name}" not found`);
+    if (!a) throw new HttpError(404, `App "${name}" not found`);
     if (label !== undefined) a.label = label;
     if (webhookUrl !== undefined) a.webhookUrl = webhookUrl || null;
     this._persist();
@@ -136,7 +137,7 @@ class WhatsAppPool {
 
   async unregister(name) {
     const a = this.apps[name];
-    if (!a) throw new Error(`App "${name}" not found`);
+    if (!a) throw new HttpError(404, `App "${name}" not found`);
     if (this.instances[name]) {
       try { await this.instances[name].disconnect(); } catch (_) {}
       delete this.instances[name];
@@ -154,7 +155,7 @@ class WhatsAppPool {
 
   rotateToken(name) {
     const a = this.apps[name];
-    if (!a) throw new Error(`App "${name}" not found`);
+    if (!a) throw new HttpError(404, `App "${name}" not found`);
     a.token = this._generateToken();
     this._persist();
     return a.token;
