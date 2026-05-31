@@ -1,0 +1,48 @@
+## Always-on WhatsApp service (multi-app pool).
+##
+## Shared by all environments (dev, qa, prod).
+## Each environment+clinic gets its own independent session
+## (app name format: {env}-{tenant-slug}).
+##
+## Session state lives at WHATSAPP_SESSION_DIR on the host.
+## Re-pairing the phone is the cost of losing that directory.
+
+services:
+  whatsapp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: nice-agenda-whatsapp:latest
+    container_name: nice-agenda-whatsapp
+    restart: always
+    # Run an init (tini) as PID 1 to reap zombie Chromium processes that
+    # whatsapp-web.js/Puppeteer leave behind, and to forward SIGTERM to node
+    # for graceful, session-preserving shutdown.
+    init: true
+    stop_grace_period: 30s
+    environment:
+      NODE_ENV: production
+      PORT: 2061
+      HOST: 0.0.0.0
+      LOG_LEVEL: info
+      ENABLE_CONSOLE_LOGGING: "true"
+      WHATSAPP_ADMIN_TOKEN: ${WHATSAPP_ADMIN_TOKEN:-}
+      # Per-app scaling knobs (code defaults shown). Each app is a full Chromium
+      # instance; the pool reaps COLD, non-connected instances only — paired and
+      # sending sessions are never torn down. Raise the cap if you outgrow it.
+      WHATSAPP_MAX_INSTANCES: ${WHATSAPP_MAX_INSTANCES:-50}
+      WHATSAPP_IDLE_EVICT_MS: ${WHATSAPP_IDLE_EVICT_MS:-1800000}
+      WHATSAPP_REAP_INTERVAL_MS: ${WHATSAPP_REAP_INTERVAL_MS:-300000}
+    ports:
+      - "2061:2061"
+    volumes:
+      # Bind mount survives `docker volume prune` — losing this means
+      # re-scanning the QR code from the phone.
+      - ${WHATSAPP_SESSION_DIR:-/home/main/code/nice-agenda/whatsapp-session}:/app/.wwebjs_auth
+      - /dev/shm:/dev/shm
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:2061/api/whatsapp/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
