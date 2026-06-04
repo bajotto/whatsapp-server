@@ -412,7 +412,16 @@ class WhatsAppService {
 
   normalizeBrazilianPhoneNumber(phoneNumber) {
     if (!phoneNumber) throw new HttpError(400, 'Phone number is required');
-    let digits = phoneNumber.replace(/\D/g, '');
+    const original = phoneNumber.replace(/\D/g, '');
+
+    // Non-Brazilian numbers arrive already normalised (e.g. "351912345678").
+    // They won't start with "55", so skip BR-specific logic and use as-is when
+    // the length is plausibly international (12–15 digits with country code).
+    if (!original.startsWith('55') && original.length >= 10 && original.length <= 15) {
+      return original;
+    }
+
+    let digits = original;
     if (digits.startsWith('55')) digits = digits.substring(2);
 
     if (digits.length === 11) return '55' + digits;
@@ -422,13 +431,14 @@ class WhatsAppService {
       return '55' + ddd + '9' + number;
     }
     if (digits.length === 13) {
-      const original = phoneNumber.replace(/\D/g, '');
       if (original.length === 13 && original.startsWith('55')) return original;
     }
     if (digits.length >= 8 && digits.length <= 15) {
       if (digits.length === 10 || digits.length === 9) {
         return '55' + digits.substring(0, 2) + '9' + digits.substring(2);
       }
+      // Fallback: number arrived with enough digits — use as-is
+      if (digits.length >= 10) return '55' + digits;
     }
     throw new HttpError(400, `Invalid phone format: ${phoneNumber} (${digits.length} digits). Expected: 55[DDD][9][8digits]`);
   }
