@@ -197,9 +197,30 @@ class WhatsAppService {
 
       this.client.on('message', async (msg) => {
         try {
+          // WhatsApp's number-privacy ("LID") addressing delivers inbound
+          // messages with `from` as "<lid>@lid" instead of "<phone>@c.us".
+          // Downstream webhook consumers match patients by phone number, so we
+          // resolve the LID back to the phone JID here. The resolution is
+          // best-effort: on any failure we keep the raw id (no regression), and
+          // we always expose the original via `lid`/`rawFrom`.
+          let from = msg.from;
+          let senderLid = null;
+          if (typeof from === 'string' && from.endsWith('@lid')) {
+            senderLid = from;
+            try {
+              const [mapping] = await this.client.getContactLidAndPhone([from]);
+              if (mapping && mapping.pn) from = mapping.pn;
+              else logger.warn(`[${this.appName}] LID->phone unresolved for ${from}`);
+            } catch (e) {
+              logger.warn(`[${this.appName}] LID->phone resolve failed for ${from}: ${e.message}`);
+            }
+          }
+
           this._emit('message', {
             id: msg.id?._serialized,
-            from: msg.from,
+            from,                 // resolved to <phone>@c.us when the sender uses LID
+            lid: senderLid,       // original LID id, when present (else null)
+            rawFrom: msg.from,    // always the unmodified WhatsApp id
             to: msg.to,
             body: msg.body,
             type: msg.type,
